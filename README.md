@@ -2,7 +2,7 @@
 
 Author:
  - @hanasuru
- - @
+ - @deomkicer
  - @
  - @
 
