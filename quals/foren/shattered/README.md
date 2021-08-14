@@ -11,7 +11,7 @@ All I have is this shattered image. I wonder how does it look like..
 
 ## Hints
 
-- All I have are these `zlib`. Do you think that it can be recovered?
+- All I have are these `zlib`. Do you think that it could be used to predict the image size?
 
 ## Flag
 
