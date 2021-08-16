@@ -10,7 +10,7 @@ RUN groupadd -r ctf && useradd -r -g ctf ctf
 #add chall items
 #ADD chall_init.sh /etc/chall_init.sh
 COPY flag /home/ctf/flag
-COPY ./share/chall /home/ctf/chall
+COPY chall /home/ctf/chall
 COPY xinetd /etc/xinetd.d/xinetd
 # ADD redir.sh /home/ctf/redir.sh
 

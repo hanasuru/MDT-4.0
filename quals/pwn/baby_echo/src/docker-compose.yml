@@ -1,6 +1,6 @@
 version: '3'
 services:
-  pwn_deploy:
+  pwn_deploy2:
     build:
       context: .
     working_dir: /home/ctf
