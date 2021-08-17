@@ -2,11 +2,11 @@
 
 ## Description
 
-Try this app to check your image metadata
+Try this app to write a comment tag on your image !
 
 ## Release
 
--
+- upload.php
 
 ## Hints
 
@@ -14,4 +14,4 @@ Try this app to check your image metadata
 
 ## Flag
 
-`MDT4.0{secure_app_is_useless_with_0day_on_3rd_party_app}`
+`MDT4.0{imagine_pwning_large_company_only_by_using_exiftool}`

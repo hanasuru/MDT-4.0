@@ -8,7 +8,7 @@ if($_POST['upload'] && $_POST["comment"]){
     $ext = strtolower(end($x));
     $size	= $_FILES['file']['size'];
     $file_tmp = $_FILES['file']['tmp_name'];
-    $outfilename = sha1($filename . time() . 'out'. 'randomgan');
+    $outfilename = "<REDACTED>";
     $outpath = getcwd().'/uploads/'.$outfilename.".".$ext;
 
     if(in_array($ext, $allowed_ext) === true){

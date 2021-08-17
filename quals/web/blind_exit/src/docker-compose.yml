@@ -8,8 +8,6 @@ services:
       dockerfile: docker/nginx/Dockerfile
     ports:
       - "7878:80"
-    volumes:
-      - .:/app/
     links:
       - php
 
@@ -17,5 +15,3 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    volumes:
-      - .:/app/
