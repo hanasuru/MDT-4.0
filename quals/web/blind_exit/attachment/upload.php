@@ -8,8 +8,8 @@ if($_POST['upload'] && $_POST["comment"]){
     $ext = strtolower(end($x));
     $size	= $_FILES['file']['size'];
     $file_tmp = $_FILES['file']['tmp_name'];
-    $outfilename = "<REDACTED>";
-    $outpath = getcwd().'/uploads/'.$outfilename.".".$ext;
+    $outfilename = sha1($filename . time() . 'out'. 'randomgan');
+    $outpath = 'uploads/'.$outfilename.".".$ext;
 
     if(in_array($ext, $allowed_ext) === true){
         
@@ -24,7 +24,12 @@ if($_POST['upload'] && $_POST["comment"]){
             $write_cmd = escapeshellcmd("./exiftool -Comment='$comment' $outpath");
             shell_exec($check_cmd.";".$write_cmd);
 
-            die("Tag Image Done. Visit your file on : $outpath");
+            $image_info = getimagesize($outpath);
+
+            header('Content-Type: ' . $image_info['mime']);
+            header('Content-Length: ' . filesize($outpath));
+
+            readfile($outpath);
 
         }else{
             die('Size too big !');
