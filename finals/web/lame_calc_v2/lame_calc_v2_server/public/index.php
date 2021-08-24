@@ -46,7 +46,7 @@
                 die("Bad Char !");
             }
 
-            $blacklist = "include|read|all|open|file|dir|opt|glob|object|iter|eval|return|field|close|set";
+            $blacklist = "include|read|all|open|file|dir|opt|glob|object|iter|eval|return|field|close|set|require";
 
             if (preg_match("/$blacklist/i", $eq)){
                 die("Bad Word !");
