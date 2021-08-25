@@ -2,11 +2,12 @@
 
 ## Description
 
-Also don't forget to take care the second baby very carefully!
+Also don't forget to take care the second baby very carefully! `nc HOST PORT`
 
 ## Release
 
 - server.py
+- nc HOST PORT
 
 ## Flag
 

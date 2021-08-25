@@ -7,7 +7,7 @@ r = remote('localhost', 30001)
 def tulis(payload):
     r.sendlineafter('> ', '1')
     r.sendlineafter('Nama: ', payload)
-    r.sendlineafter('Tim (diaduk/tidak diaduk): ', 'diaduk')
+    r.sendlineafter('Sekte (diaduk/tidak diaduk): ', 'diaduk')
     r.sendlineafter('Rating (1-5): ', '5')
     r.recvuntil('Kupon: ')
     return r.recvline(0)

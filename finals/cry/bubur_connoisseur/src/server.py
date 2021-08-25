@@ -35,7 +35,7 @@ def user_input(s):
 def tulis():
     try:
         nama = user_input('Nama: ')
-        sekte = user_input('Tim (diaduk/tidak diaduk): ')
+        sekte = user_input('Sekte (diaduk/tidak diaduk): ')
         assert sekte in ['diaduk', 'tidak diaduk']
         alasan = BUBUR[sekte]
         rating = int(user_input('Rating (1-5): '))
