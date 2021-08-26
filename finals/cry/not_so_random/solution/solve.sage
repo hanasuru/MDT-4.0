@@ -10,7 +10,7 @@ s2 = Integer(r.recvline(0).decode())
 p = 0xffffffffffffffffffffffffffffff61
 P = GF(p)
 
-sama = P(s2) / (0x69420 + 1)
+sama = P(s2) / (0x7826 + 1)
 seed = sama.nth_root(0x1337 * 0x7331)
 seed = Integer(seed)
 print(f'seed: {seed}')
@@ -23,7 +23,7 @@ class NotSoRandom:
 
     def next(self):
         self.a, self.b = pow(self.b, 0x1337, self.p), pow(self.a, 0x7331, self.p)
-        return (self.a * 0x69420 + self.b) % self.p
+        return (self.a * 0x7826 + self.b) % self.p
 
 nsr = NotSoRandom(seed)
 calc_s1 = nsr.next(); print(f'state 1: {calc_s1}')
@@ -35,7 +35,6 @@ r.sendlineafter(b'> ', b'2')
 r.sendlineafter(b'guess: ', str(calc_s3).encode())
 enc = bytes.fromhex(r.recvline(0).decode())
 
-xor = lambda a, b: bytes([a[i] ^^ b[i % len(b)] for i in range(len(a))])
 q = int.to_bytes(int(calc_s4), 16, 'big')
 FLAG = xor(enc[:len(enc)//2], q[0::2]) + xor(enc[len(enc)//2:], q[1::2])
 print(FLAG.decode())

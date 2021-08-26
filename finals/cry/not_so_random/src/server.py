@@ -26,7 +26,7 @@ class NotSoRandom:
 
     def next(self):
         self.a, self.b = pow(self.b, 0x1337, self.p), pow(self.a, 0x7331, self.p)
-        return (self.a * 0x69420 + self.b) % self.p
+        return (self.a * 0x7826 + self.b) % self.p
 
 xor = lambda a, b: bytes([a[i] ^ b[i % len(b)] for i in range(len(a))])
 
