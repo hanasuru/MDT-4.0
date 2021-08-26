@@ -25,8 +25,8 @@ class NotSoRandom:
         self.a, self.b = seed, seed
 
     def next(self):
-        self.a, self.b = pow(self.b, 0x1337, self.p), pow(self.a, 0x7331, self.p)
-        return (self.a * 0x7826 + self.b) % self.p
+        self.a, self.b = pow(self.b, 0x7295, self.p), pow(self.a, 0x7827, self.p)
+        return (self.a * 0xf04e + self.b) % self.p
 
 xor = lambda a, b: bytes([a[i] ^ b[i % len(b)] for i in range(len(a))])
 

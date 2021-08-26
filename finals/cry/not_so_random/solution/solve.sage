@@ -1,6 +1,8 @@
 #!/usr/bin/sage
 from pwn import *
 
+from server import NotSoRandom
+
 # r = process('./server.py', level='warn')
 r = remote('localhost', 30002, level='warn')
 r.sendlineafter(b'> ', b'1')
@@ -10,20 +12,10 @@ s2 = Integer(r.recvline(0).decode())
 p = 0xffffffffffffffffffffffffffffff61
 P = GF(p)
 
-sama = P(s2) / (0x7826 + 1)
-seed = sama.nth_root(0x1337 * 0x7331)
+sama = P(s2) / (0xf04e + 1)
+seed = sama.nth_root(0x7295 * 0x7827)
 seed = Integer(seed)
 print(f'seed: {seed}')
-
-class NotSoRandom:
-    def __init__(self, seed):
-        self.p = 0xffffffffffffffffffffffffffffff61
-        assert seed < self.p
-        self.a, self.b = seed, seed
-
-    def next(self):
-        self.a, self.b = pow(self.b, 0x1337, self.p), pow(self.a, 0x7331, self.p)
-        return (self.a * 0x7826 + self.b) % self.p
 
 nsr = NotSoRandom(seed)
 calc_s1 = nsr.next(); print(f'state 1: {calc_s1}')
