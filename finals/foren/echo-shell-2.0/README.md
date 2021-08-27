@@ -2,15 +2,13 @@
 
 ## Description
 
-Even after downgrading the shell, we got attacked by unamed man again. Could you figured it out?
-
-*Note: The log was captured on client side*
+yet another echo-shell again, this time we got some massive requests..
 
 ## Release
 
 - server.py
-- shell.pcap
+- shell.tar.xz
 
 ## Flag
 
-`MDT4.0{why_this_th1ng_st1ll_ech01ng_183dba4}`
+`MDT4.0{p0rt_sc4n_0ver_ech0_p4cket_183dba4}`

@@ -1,99 +1,29 @@
-from netfilterqueue import NetfilterQueue
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Cipher import AES
 
+from netfilterqueue import NetfilterQueue
 from base64 import b64encode, b64decode
-from subprocess import PIPE, Popen
 from binascii import hexlify
 from scapy.all import *
-from pwn import *
+from config import *
 
 import re
 import os
-import zlib
 import jwt
 import json
-
+import zlib
 import struct
 import random
+import logging
 
-field = re.compile(r'PING(?P<data>.*)(?P<cookies>.{4}COOKIES.*)', re.S)
-exfil_data = re.compile(r'.{4}(?P<method>.{4})(?P<data>.*).{4}', re.S)
-exfil_cookies = re.compile(r'.{4}COOKIES(?P<data>.*).{4}', re.S)
-exfil_crc = re.compile(r'.{4}$', re.S)
+logging.basicConfig(level=logging.DEBUG)
 
-sessions_count = {}
+secret = None
+sessions = {}
 
-CHAR = 'abcdef0123456789'
-HEADER = 'PONG'
-
-CMD_TYPE = {
-    'AUTH'  : 'self.auth',
-    'GETS'  : 'self.gets',
-    'LIST'  : 'self.list',
-}
-
-users = {
-    'admin': {
-        'uid': 0,
-        'name': 'admin',
-        'password': 'admin@123',
-        'is_admin': True
-    },
-    'guest':{
-        'uid': 1,
-        'name': 'guest',
-        'password': 'guest',
-        'is_admin': False
-    }
-}
-
-
-def split(length, x=60, y=64):
-    segments = []
-    pos = 0
-
-    while pos != length:
-        picked_len = randint(x, y)
-        
-        if pos + picked_len > length:
-            picked_len = length - pos
-
-        segments.append(picked_len)
-        pos += picked_len
-
-    assert sum(segments) == length
-
-    return segments
-
-def populate(target, segments):
-    dd_bs = "dd if={} bs={} skip={} count=1 | od"
-    dd_count = "dd if={} bs=1 skip={} count={} | od"
-    
-    mode = ['bs', 'count']
-    cmds = []
-
-    pos = 0
-    for enum, seg in enumerate(segments):
-        m = choice(mode)
-        bs = seg
-        
-        if m == 'bs':        
-
-            if not pos % bs:
-                skip = pos/bs
-                cmds.append(dd_bs.format(target, bs, skip))
-            else:
-                skip = pos
-                cmds.append(dd_count.format(target, skip, seg))
-
-        else:
-            skip = pos
-            cmds.append(dd_count.format(target, skip, seg))
-
-        pos += seg
-
-    return cmds
+field = re.compile(r'PING(?P<payload>.*)(?P<token>.{4}TOKEN.*)', re.S)
+sh_payload = re.compile(r'.{4}(?P<method>.{4})(?P<data>.*)(?P<crc>.{4})', re.S)
+sh_token = re.compile(r'.{4}TOKEN(?P<data>.*)(?P<crc>.{4})', re.S)
 
 def jsonify(**kwargs):
     return json.dumps(kwargs)
@@ -106,14 +36,12 @@ def chsum(data):
     return struct.pack('>I', checksum)
 
 def randstr(seed, size=32):
+    charset = 'abcdef0123456789'
     random.seed(seed)
-    
-    return str(bytearray(random.choice(CHAR) for _ in xrange(size)))
+    return str(bytearray(random.choice(charset) for _ in xrange(size)))
 
-def encrypt(text, session_id, seed):
-    num = int(session_id, 16) + int(secret, 16)
-    key = randstr(int(seed) + num)
-
+def encrypt(text, seed, session_id):
+    key = randstr(seed + int(secret, 16) + int(session_id, 16)) 
     iv = os.urandom(16)
     aes = AES.new(key, AES.MODE_CBC, iv)
 
@@ -147,150 +75,134 @@ class EchoData(object):
         return chsum(self.data)
 
 
-class FTPShell(object):
+class Shell(object):
     def __init__(self, raw, seed):
         self._raw = raw
         self._seed = seed
 
         self._data = None
-        self._cookies = None
+        self._token = None
 
     def run(self):
-        fields = field.search(self._raw)
-        rawdata = fields.group('data')
-        cookies = fields.group('cookies')
+        col = field.search(self._raw)
+        token = col.group('token')
+        payload = col.group('payload')
 
-        shell_method = exfil_data.search(rawdata).group('method')
-        shell_data = exfil_data.search(rawdata).group('data')
+        token = sh_token.search(token)
+        token_data = token.group('data')
+        token_crc = token.group('crc')
 
-        assert exfil_crc.search(rawdata).group() == chsum(shell_data), 'CRC Error. Data was corrupted?'
+        payload = sh_payload.search(payload)
+        payload_method = payload.group('method')
+        payload_data = payload.group('data')
+        payload_crc = payload.group('crc')
 
-        shell_data = json.loads(zlib.decompress(shell_data))
-        shell_cookies = exfil_cookies.search(cookies).group('data')
+        assert (token_crc == chsum(token_data)), CRC_ERR
+        assert (payload_crc == chsum(payload_data)), CRC_ERR
 
-        assert exfil_crc.search(cookies).group() == chsum(shell_cookies), 'CRC Error. Cookies were corrupted?'
+        token, data = map(
+            lambda _ : json.loads(zlib.decompress(_)),
+            (token_data, payload_data)
+        )
 
-        shell_cookies = json.loads(zlib.decompress(shell_cookies)).get('token')
+        token = token.get('token')
 
-        eval('%s(shell_data, shell_cookies)' % (CMD_TYPE.get(shell_method)))
+        if payload_method == 'AUTH':
+            self.auth(data, token)
+        elif payload_method == 'SEND':
+            self.send(data, token)
 
-    def auth(self, data, cookies=None):
-        global sessions_count
+    def auth(self, data, token=None):
+        global sessions, secret
 
         username = data['username']
         password = data['password']
         user = users.get(username)
         
         if user is None:
-            raise Exception('Username does not exist!')
-        if password != user['password']:
-            raise Exception('Incorrect password!')
+            raise Exception(INVALID_USER_ERR)
+        if password != user.get('password'):
+            raise Exception(INVALID_PASS_ERR)
 
-        content = 'Successfully logged in'
-        session_id = randstr(32)
+        if not token:
+            secret = randstr(random.getrandbits(8), size=5)
+            session_id = randstr(random.getrandbits(8), size=32)
+            sessions[session_id] = secret
+        else:
+            session_id = jwt.decode(token, secret).get('session_id')
 
-        self.data = self.make_response_data('LIST', content, session_id)
-        self.cookies = self.make_response_cookies('COOKIES', user, session_id)
+        self.data = self.make_response_data('AUTH', LOGIN_SUCCESS, session_id)
+        self.token = self.make_response_token('TOKEN', user, session_id, False)
 
-        sessions_count[session_id] = 0
+    def send(self, data, token):
+        global secret
 
-    def list(self, data, cookies=None):
-        global sessions_count
-
-        cookies = jwt.decode(cookies, secret)
-        session_id = cookies['session_id']
-        username = cookies['username']
+        token_data = jwt.decode(token, secret)
+        packet_data = b64decode(data.get('packet'))
+        session_id = token_data.get('session_id')
+        username = token_data.get('username')
+        exhausted = token_data.get('exhausted')
         user = users.get(username)
 
-        if session_id not in sessions_count:
-            raise Exception('Session doesn\'t exist!')
-        if sessions_count.get(session_id) > 0:
-            raise Exception('Session expired!')
+        if session_id not in sessions:
+            raise Exception(INVALID_SES_ERR)
+        if exhausted:
+            raise Exception(EXPIRED_SES_ERR)
+        if not users.get(username)['is_admin']:
+            raise Exception(INVALID_PRIV_ERR)
 
-        path = data['path']
-        content = ' '.join(os.listdir(path))
+        response = sr1(IP(packet_data), timeout=1)
+        if response:
+            response = bytes(response)
+        else:
+            response = bytes('')
         
-        self.data = self.make_response_data('LIST', content, session_id)
-        self.cookies = self.make_response_cookies('COOKIES', user, session_id)
+        secret = sessions[session_id]
+        self.data = self.make_response_data('SEND', response, session_id)
+        self.token = self.make_response_token('TOKEN', user, session_id, True)
 
-        sessions_count[session_id] = 1
-
-    def gets(self, data, cookies=None):
-        global sessions_count
-
-        cookies = jwt.decode(cookies, secret)
-        username = cookies['username']
-        is_admin = cookies['is_admin']
-        session_id = cookies['session_id']
-        user = users.get(username)
-
-        if session_id not in sessions_count:
-            raise Exception('Session doesn\'t exist!')
-        if sessions_count.get(session_id) > 0:
-            raise Exception('Session expired!')
-
-        if not is_admin:
-            raise Exception('Admin role is required to download file!')
-
-        filename = data['filename']
-        filesize = os.path.getsize(filename)
-        commands = populate(filename, split(filesize))
-
-        file_content = []      
-        for cmd in commands:
-            content = os.popen(cmd).read()
-            data = self.make_response_data('GETS', content, session_id)
-
-            file_content.append(data)
-
-        self.data = file_content
-        self.cookies = self.make_response_cookies('COOKIES', user, session_id)
-
-        sessions_count[session_id] = 1
-
-    def make_response_data(self, method, content, session_id=None):
+    def make_response_data(self, method, content, session_id):
         encrypted_content = encrypt(
             str(content),
-            session_id,
-            self._seed
+            self._seed,
+            session_id
         )
 
         return EchoData(method, encrypted_content)
 
-    def make_response_cookies(self, method, user, session_id):
-        cookies = jwt.encode({
+    def make_response_token(self, method, user, session_id, exhausted):
+        token = jwt.encode({
             'session_id': session_id,
-            'username': user['name'],
-            'is_admin': user['is_admin']
+            'username': user.get('name'),
+            'is_admin': user.get('is_admin'),
+            'exhausted': exhausted
         }, secret)
 
-        return EchoData(method, jsonify(token=cookies))
+        return EchoData(method, jsonify(token=token))
     
     @property
-    def response(self):
-        if isinstance(self.data, list):
-            return [HEADER + d.tobytes() + self.cookies for d in self.data]
+    def header(self):
+        return 'PONG'
 
-        return HEADER + self.data.tobytes() + self.cookies
+    @property
+    def response(self):
+        return self.header + self.data + self.token
 
     @property
     def data(self):
-        return self._data
+        return self._data.tobytes()
 
     @property
-    def cookies(self):
-        if not self._cookies:
-            return EchoData('COOKIES', '').tobytes()
-
-        return self._cookies.tobytes()
+    def token(self):
+        return self._token.tobytes()
 
     @data.setter
     def data(self, value):
         self._data = value
 
-    @cookies.setter
-    def cookies(self, value):
-        self._cookies = value
+    @token.setter
+    def token(self, value):
+        self._token = value
 
 
 def mod(pkt):
@@ -303,22 +215,16 @@ def mod(pkt):
     data = pkt[ICMP].load
 
     try:
-        shell = FTPShell(data, time)
+        shell = Shell(data, int(time))
         shell.run()
-
         response = shell.response
+
     except Exception as e:
         stderr = EchoData('ERROR', str(e))
         response = stderr.tobytes()
+        logging.error(str(e))
 
-    if isinstance(response, list):
-        responses = list(zip(range(len(response)), response))
-        random.shuffle(responses)
-
-        for res in responses:
-            send(IP(src=dst, dst=src)/ICMP(type=0, code=0, id=id, seq=res[0])/res[1])
-    else:
-        send(IP(src=dst, dst=src)/ICMP(type=0, code=0, id=id, seq=seq)/response)
+    send(IP(src=dst, dst=src)/ICMP(type=0, code=0, id=id, seq=seq)/response)
 
 def icmp_hooks(pkt):
     packet = IP(pkt.get_payload())
@@ -329,8 +235,6 @@ def icmp_hooks(pkt):
             mod(packet)
 
 if __name__ == '__main__':
-    secret = randstr(random.getrandbits(8), size=6)
-
     nfqueue = NetfilterQueue()
     nfqueue.bind(1, icmp_hooks)
 
