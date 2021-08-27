@@ -39,36 +39,39 @@ def home():
 @app.route("/fetch", methods=["POST"])
 def fetch_gan():
     if request.form.get("host") and request.form.get("is_https") and request.form.get("path") and request.form.get("method"):
-        host = request.form["host"]
-        is_https = int(request.form["is_https"])
-        method = request.form["method"]
-        port = request.form.get("port")
-        
-        if port:
-            port = int(port)
-        else:
-            port = None
+        try:
+            host = request.form["host"]
+            is_https = int(request.form["is_https"])
+            method = request.form["method"]
+            port = request.form.get("port")
+            
+            if port:
+                port = int(port)
+            else:
+                port = None
 
-        path = request.form["path"]
+            path = request.form["path"]
 
-        if is_https:
-            hostname = urllib.parse.urlparse("https://" + host).hostname
-        else:
-            hostname = urllib.parse.urlparse("http://" + host).hostname
+            if is_https:
+                hostname = urllib.parse.urlparse("https://" + host).hostname
+            else:
+                hostname = urllib.parse.urlparse("http://" + host).hostname
 
 
-        if hostname:
-            if is_local_ip(hostname):
-                return render_template("index.html", content="You cannot access our internal network")
+            if hostname:
+                if is_local_ip(hostname):
+                    return render_template("index.html", content="You cannot access our internal network")
 
-        if is_https:
-            conn = http.client.HTTPSConnection(hostname, port=port, timeout=10)
-        else:
-            conn = http.client.HTTPConnection(hostname, port=port, timeout=10)
-        
-        conn.request(method=method, url=path, headers={"User-Agent": "python/http.client"})
-        res = conn.getresponse()
-        return render_template("index.html", content=res.read().decode())
+            if is_https:
+                conn = http.client.HTTPSConnection(hostname, port=port, timeout=10)
+            else:
+                conn = http.client.HTTPConnection(hostname, port=port, timeout=10)
+            
+            conn.request(method=method, url=path, headers={"User-Agent": "python/http.client"})
+            res = conn.getresponse()
+            return render_template("index.html", content=res.read().decode())
+        except:
+            return render_template("index.html", content="There is some internal error, please mind your input !")
         
     else:
         return render_template("index.html", content="required : 'host','is_http','path' and 'method' . optional : 'port'")           
