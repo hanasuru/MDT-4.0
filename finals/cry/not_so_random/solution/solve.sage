@@ -1,7 +1,10 @@
 #!/usr/bin/sage
 from pwn import *
+import string, time
 
 from server import NotSoRandom
+
+start = time.time()
 
 # r = process('./server.py', level='warn')
 r = remote('localhost', 30002, level='warn')
@@ -9,24 +12,46 @@ r.sendlineafter(b'> ', b'1')
 r.sendlineafter(b'> ', b'1')
 s2 = Integer(r.recvline(0).decode())
 
-p = 0xffffffffffffffffffffffffffffff61
+p = 0xffffffffffffffffffbf
 P = GF(p)
 
-sama = P(s2) / (0xf04e + 1)
-seed = sama.nth_root(0x7295 * 0x7827)
-seed = Integer(seed)
-print(f'seed: {seed}')
+abs = P(s2).nth_root(19, all=True)
+pos = []
 
-nsr = NotSoRandom(seed)
-calc_s1 = nsr.next(); print(f'state 1: {calc_s1}')
-calc_s2 = nsr.next(); print(f'state 2: {calc_s2}')
-calc_s3 = nsr.next(); print(f'state 3: {calc_s3}')
-calc_s4 = nsr.next(); print(f'state 4: {calc_s4}')
+for ab in abs:
+    mids = P(ab).nth_root(2, all=True)
+    for mid in mids:
+        seeds = P(mid).nth_root(2 * 5, all=True)
+        pos += seeds
+
+word = string.ascii_letters + string.digits
+isPrintable = lambda x: all(i in word.encode() for i in x)
+
+for po in pos:
+    tmp = int.to_bytes(int(po), 10, 'big')
+    if isPrintable(tmp[5:]):
+        F1 = tmp[5:]
+        seed = po
+        break
+
+nsr = NotSoRandom(Integer(seed))
+nsr.next()
+nsr.next()
+
+a = Integer(nsr.next())
+q = Integer(nsr.next())
 
 r.sendlineafter(b'> ', b'2')
-r.sendlineafter(b'guess: ', str(calc_s3).encode())
-enc = bytes.fromhex(r.recvline(0).decode())
+r.sendlineafter(b'guess: ', str(a).encode())
+enc = Integer(r.recvline(0).decode())
+r.close()
 
-q = int.to_bytes(int(calc_s4), 16, 'big')
-FLAG = xor(enc[:len(enc)//2], q[0::2]) + xor(enc[len(enc)//2:], q[1::2])
-print(FLAG.decode())
+end = time.time()
+print(f'{end-start} seconds')
+
+assert enc % q == 0
+
+F2 = int(enc // q)
+F2 = int.to_bytes(F2, (F2.bit_length() + 7) // 8, 'big')
+flag = F1 + F2
+print(f'MDT4.0\x7b{flag.decode()}\x7d')

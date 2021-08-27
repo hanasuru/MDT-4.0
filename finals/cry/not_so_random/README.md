@@ -11,4 +11,4 @@ Randomness is madness!
 
 ## Flag
 
-`MDT4.0{sudahi_dukunmu_mar1_cr4ck_angka_Rand0m_ini_b3rsamaku}`
+`MDT4.0{qONW3__you_cant_stop_me_guessing_out__1NKjA}`
